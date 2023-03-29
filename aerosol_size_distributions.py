@@ -21,6 +21,31 @@ import matplotlib.ticker as mticker
 import matplotlib.dates as mdates
 import matplotlib as mpl
 
+# Custom dictionaries should have the same format
+pcasp_scattering_inputs = {
+    'name'         : 'PCASP',
+    'min_diameter' : 0.05,
+    'max_diameter' : 8,
+    'diameter_res' : 0.001,
+    'min_primary'  : 35,
+    'max_primary'  : 120,
+    'min_secondary': 60,
+    'max_secondary': 145,
+    'wavelength'   : 0.6328
+    }
+cdp_scattering_inputs = {
+    'name'         : 'CDP',
+    'min_diameter' : 1,
+    'max_diameter' : 100,
+    'diameter_res' : 0.1,
+    'min_primary'  : 1.7,
+    'max_primary'  : 14,
+    'min_secondary': None,
+    'max_secondary': None,
+    'wavelength'   : 0.658
+    }
+
+
 def kwarg_handling(ax, axes_defaults, user_kwargs, ignore_lims=False):
     """
     ax: matplotlib axes
@@ -660,7 +685,7 @@ def get_log_psds(cal_at_ri, uncorrected_psd, corrected_psd, instrument_flow, bin
     dVdlogD = dNdlogD * cal_at_ri['volume_centre']
 
     # dN error calculation
-    duration = uncorrected_psd['time'][-1]-uncorrected_psd['time'][0]
+    duration = 1
     counts_for_psd = uncorrected_psd/instrument_flow/(duration)
     counting_error = np.sqrt(counts_for_psd.mean(dim='time'))
 
@@ -1046,6 +1071,38 @@ def mask_humidity_above_threshold(psd, rh_data, rh_threshold):
     rh_mask = rh_data < rh_threshold
     rh_corrected = psd.where(rh_mask,drop=True)
     return rh_corrected
+
+def mask_humidity_above_threshold(psd, rh_data, rh_threshold):
+    """Applies a mask to remove datapoints where relative humidity is above a threshold.
+
+    Parameters
+    ----------
+    psd: xarray DataArray
+        DataArray containing the particle size distribution counts from the FAAM data. Must have
+        time dimension, i.e. not yet averaged out.
+    rh_data: xarray DataArray
+        DataArray containing relative humidity vs time data.
+    rh_threshold: float
+        Minimum relative humidity to exclude
+    """
+    rh_mask = rh_data < rh_threshold
+    rh_corrected = psd.where(rh_mask,drop=True)
+    return rh_corrected
+
+def apply_nevzorov_mask(psd, nev_flag):
+    """Applies a mask to remove datapoints where the Nevzorov flag is active.
+
+    Parameters
+    ----------
+    psd: xarray DataArray
+        DataArray containing the particle size distribution counts from the FAAM data. Must have
+        time dimension, i.e. not yet averaged out.
+    nev_flag: xarray DataArray
+        DataArray containing nevzorov flag data
+    """
+    nev_mask = nev_flag > 0.5
+    nev_corrected = psd.where(nev_mask,drop=True)
+    return nev_corrected
 
 def area_under_gap_over_time(pcasp_psd, cdp_psd, dist_str):
     """Integrate the area between the last PCASP bin and the first CDP bin.
