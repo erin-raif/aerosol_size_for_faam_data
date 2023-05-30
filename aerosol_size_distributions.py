@@ -1407,6 +1407,14 @@ def integrate_distribution_with_errors(pcasp_psd, cdp_psd):
     dV_err = np.sqrt(pcasp_dV_err**2 + gap_dV_err**2 + cdp_dV_err**2)
     return dN, dS, dV, dN_err, dS_err, dV_err
 
+def make_array_str(arr):
+    """Convert an array to a CSV string"""
+    arr_str = ''
+    for num in list(arr.values):
+        arr_str = arr_str + str(num) +','
+    arr_str = arr_str[:-1]
+    return arr_str
+
 def create_calibration_CSV(input_fn, instrument, output_fn, time_index=0, group=None):
     """Create CSVs containing calibration data for use with CStoDConverter.
     
