@@ -78,6 +78,122 @@ def kwarg_handling(ax, axes_defaults, user_kwargs, ignore_lims=False):
         user_kwargs.pop(kw, None)
     return ax, user_kwargs
 
+def add_item_to_command(command, item, value):
+    try:
+        command = command + ' -' + item + ' ' + str(value)
+        return command
+    except:
+        print(item + ' not in input dictionary')
+        exit
+
+
+
+def generate_scattering_table(ri, folder, mcs_loc, input_dict, silent=False):
+    """Generate Mie Scattering data interacting with the MieConScat program.
+
+    Using default values for the PCASP or CDP probe, use Phil Rosenberg's code to generate Mie
+    Scattering data for a particular refractive index. You can also specify a 'Custom' instrument
+    with a custom dictionary of instrument parameters.
+
+    Parameters
+    ----------
+    ri: complex number
+        Complex number in the standard Python form RE+IMj (e.g. 1.58-0.03j).
+    folder: string
+        string for the folder location where the files will be output. Should not end in \\
+    custom_input: dict (default None)
+        Dictionary of input parameters in the format of the defaults for CDP/PCASP
+    silent: bool (default False)
+        silence the commands you're passing to the CL (not recommended)
+
+    Returns
+    -------
+    none
+    """
+    try:
+        command = mcs_loc + ' -wav ' + str(input_dict['wavelength'])
+    except:
+        print('Wavelength not in input dictionary')
+    
+    # Build command to run the scattering program.
+    command = add_item_to_command(command, 'dmin', input_dict['min_diameter'])
+    command = add_item_to_command(command, 'dmax', input_dict['max_diameter'])
+    command = add_item_to_command(command, 'dint', input_dict['diameter_res'])
+    command = add_item_to_command(command, 'rerimin', ri.real)
+    command = add_item_to_command(command, 'imrimin', ri.imag)
+    command = add_item_to_command(command, 'ang1min', input_dict['min_primary'])
+    command = add_item_to_command(command, 'ang1max', input_dict['max_primary'])
+    if input_dict['min_secondary'] != None:
+        command = add_item_to_command(command, 'ang2min', input_dict['min_secondary'])
+        command = add_item_to_command(command, 'ang2max', input_dict['max_secondary'])
+    filename = 'scattering_' + input_dict['name'] + '_' + str(ri)[1:-1] + '.csv'
+    command = command + ' ' + folder + '\\' + filename
+    if silent == False:
+        print(command)
+    os.system(command)
+    return filename
+
+def create_higher_order_scatter_data(folder,csv_name):
+    """Create surface area and particle volume channel cross-section data.
+
+    Parameters
+    ----------
+    folder: string
+        name of the folder containing scattering data
+    csv_name: string
+        name of the diameter CSV to process
+    """
+
+    # Read in data to pandas df and create area and volume columns
+    scat_data = pd.read_csv(os.path.join(folder,csv_name), header=5)
+    ri_str = list(scat_data.columns)[1]
+    scat_data['area'] = np.pi * scat_data['Diameter']**2 # microns^2
+    scat_data['vol'] = (np.pi/6) * scat_data['Diameter']**3 # microns^3 (what a lovely unit!)
+    area_path = os.path.join(folder,csv_name)[:-4] + '_area.csv'
+    vol_path = os.path.join(folder,csv_name)[:-4] + '_volume.csv'
+
+    # Output data to csvs and add headers so they are readable by the CStoDConverter
+    scat_data.to_csv(area_path, columns=['area',ri_str],header=['Diameter',ri_str],index=False)
+    scat_data.to_csv(vol_path, columns=['vol',ri_str],header=['Diameter',ri_str],index=False)
+
+    scatter_header = open(os.path.join(folder,csv_name),'r').read().split('\n')[:5]
+    # Note that this will leave the headers as "Diameter" - this is not correct but needs
+    # to be to keep the program working
+    for path in [area_path, vol_path]:
+        with open(path,'r') as contents:
+            save = contents.read()
+        with open(path,'w') as contents:
+            for line in scatter_header:
+                contents.write(line + '\n')
+            contents.write(save)
+    return
+    
+def run_CStoD(faam_calibration_file, mie_csvs, cstod_loc, output_folder, silent=False):
+    """Run the CStoDConverter program from the the command line.
+
+    Parameters
+    ----------
+    faam_calibration_file: string
+        location of the calibration file provided by FAAM for the given instrument
+    mie_csvs: list of strings
+        list of CSV filenames
+    output_folder: string
+        folder where the diameter data is output to
+    silent: bool, default False
+        if true, do not print commands sent to command line.
+    
+    """
+    for csv in mie_csvs:
+        command = cstod_loc + ' ' + faam_calibration_file + ' ' + csv + ' '
+        mie_csv_name = os.path.basename(csv)[10:]
+        output_csv_name = 'channel_data' + mie_csv_name
+        command = command + os.path.join(output_folder, output_csv_name)
+        if not silent:
+            print(command)
+        os.system(command)
+    return
+        
+
 def get_refractive_indices(folder, instrument_name):
     """Get a list of refractive indices chosen
     
@@ -1290,3 +1406,94 @@ def integrate_distribution_with_errors(pcasp_psd, cdp_psd):
     dS_err = np.sqrt(pcasp_dS_err**2 + gap_dS_err**2 + cdp_dS_err**2)
     dV_err = np.sqrt(pcasp_dV_err**2 + gap_dV_err**2 + cdp_dV_err**2)
     return dN, dS, dV, dN_err, dS_err, dV_err
+
+def create_calibration_CSV(input_fn, instrument, output_fn, time_index=0, group=None):
+    """Create CSVs containing calibration data for use with CStoDConverter.
+    
+    Users will need to investigate the correct time index themselves. For the PCASP, calibrations
+    are performed at the start and end of each campaign. The start index = 0, the end index = 1.
+    Check the NetCDF file to confirm this. The CDP is calibrated before most flights, and a master
+    calibration is created for each campaign to iron out inconsistencies. Typically, you should use
+    the master calibration - selection of 'CDP' automatically chooses this here. If you wish to use
+    an individual flight calibration, you should choose the group flight_cal but this behaviour
+    that I haven't prepared for and will probably break the function! 
+
+    Parameters
+    ----------
+    input_fn: string
+        filename of the input calibration NetCDF file 
+    instrument: string
+        name of the instrument being calibrated. Must be CDP or PCASP
+    output_fn: string
+        file for output. Not restricted to CSV but wise to choose so.
+    time_index: int (default 0)
+        choice of calibration times, see note above.
+    group:
+        group of NetCDF file to interrogate, see note above.
+    """
+
+    if instrument not in ['CDP','PCASP']:
+        raise ValueError('Instrument string should be CDP or PCASP')
+    if group is None:
+        if instrument == 'CDP':
+            group = 'master_cal'
+        else:
+            group = 'bin_cal'
+    
+    cal = xr.open_dataset(input_fn, group=group)
+    min_voltage = cal.ADC_range[time_index, :, 0]
+    max_voltage = cal.ADC_range[time_index, :, 1]
+    gradient = cal.polynomial_fit_parameters[time_index, :, 1]
+    intercept = cal.polynomial_fit_parameters[time_index, :, 0]
+    var_grad = cal.polynomial_fit_variance[time_index, :, 1]
+    var_int = cal.polynomial_fit_variance[time_index, :, 0]
+    covar_int = cal.polynomial_fit_covariance[time_index, :]
+    lower_thresholds = cal.ADC_threshold[time_index, :, 0]
+    upper_thresholds = cal.ADC_threshold[time_index, :, 1]
+    lower_boundaries = cal.scattering_cross_section[time_index, :, 0]
+    upper_boundaries = cal.scattering_cross_section[time_index, :, 1]
+    lower_boundary_errs = cal.scattering_cross_section_err[time_index, :, 0]
+    upper_boundary_errs = cal.scattering_cross_section_err[time_index, :, 1]
+    channel_widths = cal.scattering_cross_section_width[time_index]
+    channel_widths_errs = cal.scattering_cross_section_width_err[time_index]
+    boundary_type = cal.dependent_scattering_cross_section_err[time_index]
+    csv_file = open(output_fn,'w')
+    csv_file.write('Straight line fits,\n')
+    csv_file.write('Min Voltage (A-D Counts),')
+    csv_file.write(make_array_str(min_voltage))
+    csv_file.write('\nMax Voltage (A-D Counts),')
+    csv_file.write(make_array_str(max_voltage))
+    csv_file.write('\nGradient (micron^2/A-D Counts),')
+    csv_file.write(make_array_str(gradient))
+    csv_file.write('\nIntercept (micron^2),')
+    csv_file.write(make_array_str(intercept))
+    csv_file.write('\nVar(Gradient)(micron^4/A-DCounts),')
+    csv_file.write(make_array_str(var_grad))
+    csv_file.write('\nVar(Intercept) (micron^4),')
+    csv_file.write(make_array_str(var_int))
+    csv_file.write('\nCovar(Gradient Intercept) (micron^4/A-DCounts),')
+    csv_file.write(make_array_str(covar_int))
+    csv_file.write('\n\nLower Thresholds,')
+    csv_file.write(make_array_str(lower_thresholds))
+    csv_file.write('\nUpper Thresholds,')
+    csv_file.write(make_array_str(upper_thresholds))
+    csv_file.write('\nLower Boundaries,')
+    csv_file.write(make_array_str(lower_boundaries))
+    csv_file.write('\nUpper Boundaries,')
+    csv_file.write(make_array_str(upper_boundaries))
+    csv_file.write('\nLower Boundary Errors,')
+    csv_file.write(make_array_str(lower_boundary_errs))
+    csv_file.write('\nUpper Boundary Errors,')
+    csv_file.write(make_array_str(upper_boundary_errs))
+    csv_file.write('\nChannel Widths,')
+    csv_file.write(make_array_str(channel_widths))
+    csv_file.write('\nChannel Widths Errors,')
+    csv_file.write(make_array_str(channel_widths_errs))
+    csv_file.write('\nBoundaries Independent/Dependent (0/1),')
+    csv_file.write(make_array_str(boundary_type))
+    csv_file.write('\n')
+    csv_file.close()
+    print(output_fn + ' created')
+    return
+
+    
