@@ -129,7 +129,7 @@ def generate_scattering_table(ri, folder, mcs_loc, input_dict, silent=False):
         command = add_item_to_command(command, 'ang2min', input_dict['min_secondary'])
         command = add_item_to_command(command, 'ang2max', input_dict['max_secondary'])
     filename = 'scattering_' + input_dict['name'] + '_' + str(ri)[1:-1] + '.csv'
-    command = command + ' ' + folder + '\\' + filename
+    command = command + ' ' + os.path.join(folder, filename)
     if silent == False:
         print(command)
     os.system(command)
