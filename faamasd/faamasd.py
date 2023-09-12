@@ -179,6 +179,8 @@ def run_CStoD(faam_calibration_file, mie_csvs, cstod_loc, output_folder, silent=
         location of the calibration file provided by FAAM for the given instrument
     mie_csvs: list of strings
         list of CSV filenames
+    cstod_loc: string
+        location of the CStoDConverter program
     output_folder: string
         folder where the diameter data is output to
     silent: bool, default False
