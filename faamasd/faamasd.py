@@ -149,7 +149,7 @@ def create_higher_order_scatter_data(folder,csv_name):
     # Read in data to pandas df and create area and volume columns
     scat_data = pd.read_csv(os.path.join(folder,csv_name), header=5)
     ri_str = list(scat_data.columns)[1]
-    scat_data['area'] = np.pi * scat_data['Diameter']**2 # microns^2
+    scat_data['area'] = (np.pi/4) * scat_data['Diameter']**2 # microns^2
     scat_data['vol'] = (np.pi/6) * scat_data['Diameter']**3 # microns^3 (what a lovely unit!)
     area_path = os.path.join(folder,csv_name)[:-4] + '_area.csv'
     vol_path = os.path.join(folder,csv_name)[:-4] + '_volume.csv'
@@ -973,8 +973,8 @@ def plot_dNdlogD(ax, log_psds, legend=False, **kwargs):
     default_kwargs = {
         'xlim': [0.1, 50],
         'ylim': [0.01, 1000],
-        'xlabel': 'Particle diameter ($\mu$m)',
-        'ylabel': r'$\frac{\mathrm{d}N}{\mathrm{d}\,\log{(D)}}$ (cm$^{-3}$)'
+        'xlabel': 'Particle diameter / $\mu$m',
+        'ylabel': r'$\frac{\mathrm{d}N}{\mathrm{d}\,\log{(D)}}$ / cm$^{-3}$'
     }
     ax, kwargs = kwarg_handling(ax, default_kwargs, kwargs)
     if len(kwargs) == 0:
@@ -1019,8 +1019,8 @@ def plot_dSdlogD(ax, log_psds, legend=False, **kwargs):
     default_kwargs = {
         'xlim': [0.1, 50],
         'ylim': [0.01, 1000],
-        'xlabel': 'Particle diameter ($\mu$m)',
-        'ylabel': r'$\frac{\mathrm{d}S}{\mathrm{d}\,\log{(D)}}$ ($\mu$m$^{2}$ cm$^{-3}$)'
+        'xlabel': 'Particle diameter / $\mu$m',
+        'ylabel': r'$\frac{\mathrm{d}S}{\mathrm{d}\,\log{(D)}}$ / $\mu$m$^{2}$ cm$^{-3}$'
     }
     ax, kwargs = kwarg_handling(ax, default_kwargs, kwargs)
     if len(kwargs) == 0:
@@ -1065,8 +1065,8 @@ def plot_dVdlogD(ax, log_psds, legend=False, **kwargs):
     default_kwargs = {
         'xlim': [0.1, 50],
         'ylim': [0.01, 1000],
-        'xlabel': 'Particle diameter ($\mu$m)',
-        'ylabel': r'$\frac{\mathrm{d}V}{\mathrm{d}\,\log{(D)}}$ ($\mu$m$^{3}$ cm$^{-3}$)'
+        'xlabel': 'Particle diameter / $\mu$m',
+        'ylabel': r'$\frac{\mathrm{d}V}{\mathrm{d}\,\log{(D)}}$ / $\mu$m$^{3}$ cm$^{-3}$'
     }
     ax, kwargs = kwarg_handling(ax, default_kwargs, kwargs)
     if len(kwargs) == 0:
