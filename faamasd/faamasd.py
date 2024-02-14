@@ -149,7 +149,7 @@ def create_higher_order_scatter_data(folder,csv_name):
     # Read in data to pandas df and create area and volume columns
     scat_data = pd.read_csv(os.path.join(folder,csv_name), header=5)
     ri_str = list(scat_data.columns)[1]
-    scat_data['area'] = (np.pi/4) * scat_data['Diameter']**2 # microns^2
+    scat_data['area'] = np.pi/ * scat_data['Diameter']**2 # microns^2
     scat_data['vol'] = (np.pi/6) * scat_data['Diameter']**3 # microns^3 (what a lovely unit!)
     area_path = os.path.join(folder,csv_name)[:-4] + '_area.csv'
     vol_path = os.path.join(folder,csv_name)[:-4] + '_volume.csv'
@@ -741,9 +741,9 @@ def get_psd_x_axis_plotting_data(cal_at_ri):
     
 
     # For plotting dS/dlogD convert area channel data to diameter
-    area_as_diameter = (4*cal_at_ri['area_centre']/np.pi)**(0.5)
-    area_as_diameter_lb = (4*(cal_at_ri['area_centre'] - cal_at_ri['area_centre_err'])/np.pi)**(0.5)
-    area_as_diameter_ub = (4*(cal_at_ri['area_centre'] + cal_at_ri['area_centre_err'])/np.pi)**(0.5)
+    area_as_diameter = (cal_at_ri['area_centre']/np.pi)**(0.5)
+    area_as_diameter_lb = ((cal_at_ri['area_centre'] - cal_at_ri['area_centre_err'])/np.pi)**(0.5)
+    area_as_diameter_ub = ((cal_at_ri['area_centre'] + cal_at_ri['area_centre_err'])/np.pi)**(0.5)
     area_as_diam_lower_error = area_as_diameter - area_as_diameter_lb
     area_as_diam_upper_error = area_as_diameter_ub - area_as_diameter
 
