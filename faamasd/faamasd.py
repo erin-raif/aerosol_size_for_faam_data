@@ -149,7 +149,7 @@ def create_higher_order_scatter_data(folder,csv_name):
     # Read in data to pandas df and create area and volume columns
     scat_data = pd.read_csv(os.path.join(folder,csv_name), header=5)
     ri_str = list(scat_data.columns)[1]
-    scat_data['area'] = np.pi/ * scat_data['Diameter']**2 # microns^2
+    scat_data['area'] = np.pi * scat_data['Diameter']**2 # microns^2
     scat_data['vol'] = (np.pi/6) * scat_data['Diameter']**3 # microns^3 (what a lovely unit!)
     area_path = os.path.join(folder,csv_name)[:-4] + '_area.csv'
     vol_path = os.path.join(folder,csv_name)[:-4] + '_volume.csv'
@@ -542,6 +542,51 @@ def get_TP_correction(all_data, p_std=1013.25, t_std=273.15):
     correction_factor = (p_std*di_temp)/(t_std*pres)
     return correction_factor
 
+def create_single_dimension_cl_data(da):
+    """Take measurement with frequency >1Hz and compress dimensions.
+    
+    Measurements with frequency N are generated in Nxtime arrays. This makes
+    one time dimension with correct interplolation of times.
+    
+    Parameters
+    ----------
+    da: xarray DataArray
+        Measurement originally from cl_data.
+        May not work with fl_data.
+    
+    Returns
+    -------
+    xarray DataArray
+        Flattened DataArray
+    """
+
+    dimensions = da.dims
+
+    # Check if any dimension names begin with 'sps'
+    sps_dims = [dim for dim in dimensions if dim.startswith('sps')]
+    
+    if len(sps_dims) == 1:
+        last_two_chars = sps_dims[0][-2:]
+        if last_two_chars.isdigit():
+            fq = int(last_two_chars)
+            # Now you have the integer value of the last two characters
+        else:
+            print('Existing resolution undefined')
+            new_da = da
+            return new_da
+    else:
+        print('Existing resolution only 1Hz')
+        new_da = da
+        return new_da
+    new_da = da.stack(new_dim=("time", 'sps' + str(fq).zfill(2)))
+    new_da['new_dim'] = new_da['new_dim'][:]['time'] + \
+        new_da['new_dim'][:][da.dims[1]]/int(da.dims[1][3:])
+    new_da = new_da.reset_index("time", drop=True)
+    new_da = new_da.reset_index(da.dims[1], drop=True)
+    new_da = new_da.rename(new_dim='time')
+    return new_da
+
+
 def get_pcasp_data_for_leg(flight_data, run_start_times, run_end_times):
     """Retrieve particle size distribution data (psd) from the PCASP dataset.
 
@@ -573,14 +618,24 @@ def get_pcasp_data_for_leg(flight_data, run_start_times, run_end_times):
     corr_factor = corr_factor.rolling(time=32, center=True).mean()
     with xr.set_options(keep_attrs=True):
         uncorrected_psd = time_slice_data(run_start_times, run_end_times, flight_data.pcasp_conc_psd/1000)
-        corrected_psd = flight_data.pcasp_conc_psd*corr_factor/1000 # factor of 1000 to convert to cm-3
-    corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd)
-    pcasp_flow = time_slice_data(run_start_times, run_end_times, flight_data['pcasp_flow'])
+    uncorrected_psd = create_single_dimension_cl_data(uncorrected_psd)
     bin_array = np.arange(1, 31, dtype=float)
-    corrected_psd = corrected_psd.rename({'pcasp_bin_centre': 'bin'})
-    corrected_psd.coords['bin'] = ('bin', bin_array)
-    uncorrected_psd = uncorrected_psd.rename({'pcasp_bin_centre': 'bin'})
-    uncorrected_psd.coords['bin'] = ('bin', bin_array)
+    if 'pcasp_bin_centre' in uncorrected_psd.coords:
+        uncorrected_psd = uncorrected_psd.rename({'pcasp_bin_centre': 'bin'})
+        uncorrected_psd.coords['bin'] = ('bin', bin_array)
+    with xr.set_options(keep_attrs=True):
+        corrected_psd = flight_data.pcasp_conc_psd*corr_factor/1000 # factor of 1000 to convert to cm-3
+    corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd) # redundant?
+    if 'pcasp_bin_centre' in corrected_psd.coords:
+        corrected_psd = corrected_psd.rename({'pcasp_bin_centre': 'bin'})
+        corrected_psd.coords['bin'] = ('bin', bin_array)
+    pcasp_flow = time_slice_data(run_start_times, run_end_times, flight_data['pcasp_flow'])
+    pcasp_flow = create_single_dimension_cl_data(pcasp_flow)
+#    bin_array = np.arange(1, 31, dtype=float)
+#    corrected_psd = corrected_psd.rename({'pcasp_bin_centre': 'bin'})
+#    corrected_psd.coords['bin'] = ('bin', bin_array)
+#    uncorrected_psd = uncorrected_psd.rename({'pcasp_bin_centre': 'bin'})
+#    uncorrected_psd.coords['bin'] = ('bin', bin_array)
     return uncorrected_psd, corrected_psd, pcasp_flow
 
 def get_cdp_data_for_leg(flight_data, run_start_times, run_end_times, CDP_sample_area=0.00199):
@@ -616,18 +671,24 @@ def get_cdp_data_for_leg(flight_data, run_start_times, run_end_times, CDP_sample
     corr_factor = corr_factor.rolling(time=32, center=True).mean()
     with xr.set_options(keep_attrs=True):
         uncorrected_psd = time_slice_data(run_start_times, run_end_times, flight_data.cdp_conc_psd/1000)
+    uncorrected_psd = create_single_dimension_cl_data(uncorrected_psd)
+    bin_array = np.arange(1, 31, dtype=float)
+    if 'cdp_bin_centre' in uncorrected_psd.coords:
+        uncorrected_psd = uncorrected_psd.rename({'cdp_bin_centre': 'bin'})
+        uncorrected_psd.coords['bin'] = ('bin', bin_array)
+    with xr.set_options(keep_attrs=True):
         corrected_psd = flight_data.cdp_conc_psd*corr_factor/1000 # factor of 1000 to convert to cm-3
     corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd)
+    if 'cdp_bin_centre' in corrected_psd.coords:
+        corrected_psd = corrected_psd.rename({'cdp_bin_centre': 'bin'})
+        corrected_psd.coords['bin'] = ('bin', bin_array)
+
     # Generate CDP flow in cm^3 s^-1 by multiplying true air speed (in m/s) by 100 to convert to cm/s
     # and the CDP sampling area (in cm^2)
     true_air_speed = create_single_dimension(flight_data['TAS_RVSM'])
     cdp_flow = time_slice_data(run_start_times, run_end_times,
         true_air_speed*100*CDP_sample_area)
-    bin_array = np.arange(1, 31, dtype=float) 
-    corrected_psd = corrected_psd.rename({'cdp_bin_centre': 'bin'})
-    corrected_psd.coords['bin'] = ('bin', bin_array)
-    uncorrected_psd = uncorrected_psd.rename({'cdp_bin_centre': 'bin'})
-    uncorrected_psd.coords['bin'] = ('bin', bin_array)
+    cdp_flow = create_single_dimension_cl_data(cdp_flow)
     return uncorrected_psd, corrected_psd, cdp_flow
 
 # Lambda functions for flexible bin merging operations
