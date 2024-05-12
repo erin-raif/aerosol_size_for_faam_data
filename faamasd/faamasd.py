@@ -462,7 +462,7 @@ def create_single_dimension(da):
         new_da = new_da.reset_index(da.dims[1], drop=True)
         new_da = new_da.rename(new_dim='time')
     else:
-        print('Existing resolution only 1Hz')
+        # Existing resolution is only 1 Hz
         new_da = da
     return new_da
 
@@ -575,7 +575,7 @@ def create_single_dimension_cl_data(da):
             new_da = da
             return new_da
     else:
-        print('Existing resolution only 1Hz')
+        #print('Existing resolution only 1Hz')
         new_da = da
         return new_da
     new_da = da.stack(new_dim=("time", 'sps' + str(fq).zfill(2)))
@@ -625,7 +625,8 @@ def get_pcasp_data_for_leg(flight_data, run_start_times, run_end_times):
         uncorrected_psd.coords['bin'] = ('bin', bin_array)
     with xr.set_options(keep_attrs=True):
         corrected_psd = flight_data.pcasp_conc_psd*corr_factor/1000 # factor of 1000 to convert to cm-3
-    corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd) # redundant?
+        corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd) # redundant?
+    corrected_psd = create_single_dimension_cl_data(uncorrected_psd)
     if 'pcasp_bin_centre' in corrected_psd.coords:
         corrected_psd = corrected_psd.rename({'pcasp_bin_centre': 'bin'})
         corrected_psd.coords['bin'] = ('bin', bin_array)
@@ -678,7 +679,8 @@ def get_cdp_data_for_leg(flight_data, run_start_times, run_end_times, CDP_sample
         uncorrected_psd.coords['bin'] = ('bin', bin_array)
     with xr.set_options(keep_attrs=True):
         corrected_psd = flight_data.cdp_conc_psd*corr_factor/1000 # factor of 1000 to convert to cm-3
-    corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd)
+        corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd)
+    corrected_psd = create_single_dimension_cl_data(uncorrected_psd)
     if 'cdp_bin_centre' in corrected_psd.coords:
         corrected_psd = corrected_psd.rename({'cdp_bin_centre': 'bin'})
         corrected_psd.coords['bin'] = ('bin', bin_array)
