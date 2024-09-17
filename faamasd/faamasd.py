@@ -264,6 +264,7 @@ def produce_df_for_each_ri(unique_ris, channel_data_folder):
     for ri in unique_ris:
         test_ri_str = str(ri)[1:-1]
         csvs_with_particular_ri = glob(os.path.join(channel_data_folder, '*'+test_ri_str+'*'))
+        csvs_with_particular_ri = sorted(csvs_with_particular_ri)
         one_ri_dfs = {
             'diam_df': read_channel_data_csv(csvs_with_particular_ri[0]),
             'area_df': read_channel_data_csv(csvs_with_particular_ri[1]),
@@ -720,15 +721,21 @@ def bin_merger(da, func):
     bin_6 = da.sel(bin=6)
     bin_15 = da.sel(bin=15)
     bin_16 = da.sel(bin=16)
+    bin_23 = da.sel(bin=23)
+    bin_24 = da.sel(bin=24)
     bin_5_6 = func(bin_5, bin_6)
     bin_15_16 = func(bin_15, bin_16)
+    bin_23_24 = func(bin_23, bin_24)
     bin_5_6['bin'] = 5.5
     bin_15_16['bin'] = 15.5
+    bin_23_24['bin'] = 23.5
     da = xr.concat([da.sel(bin=slice(0, 4)),
             bin_5_6,
             da.sel(bin=slice(7, 14)),
             bin_15_16,
-            da.sel(bin=slice(17, None))], dim='bin')
+            da.sel(bin=slice(17,22)),
+            bin_23_24,
+            da.sel(bin=slice(25, None))], dim='bin')
     return da
 
 def merge_pcasp_bins(corrected_psd, uncorrected_psd, cal_at_ri):
