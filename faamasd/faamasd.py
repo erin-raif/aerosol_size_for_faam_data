@@ -627,7 +627,7 @@ def get_pcasp_data_for_leg(flight_data, run_start_times, run_end_times):
     with xr.set_options(keep_attrs=True):
         corrected_psd = flight_data.pcasp_conc_psd*corr_factor/1000 # factor of 1000 to convert to cm-3
         corrected_psd = time_slice_data(run_start_times, run_end_times, corrected_psd) # redundant?
-    corrected_psd = create_single_dimension_cl_data(uncorrected_psd)
+    corrected_psd = create_single_dimension_cl_data(corrected_psd)
     if 'pcasp_bin_centre' in corrected_psd.coords:
         corrected_psd = corrected_psd.rename({'pcasp_bin_centre': 'bin'})
         corrected_psd.coords['bin'] = ('bin', bin_array)
